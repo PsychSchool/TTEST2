@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Processing Speed Tennis - Half Oval Variant</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#352879">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+        
+        /* CRITICAL LOCK: Prevents mobile pull-to-refresh and background scrolling */
+        html, body {
+            overscroll-behavior: none; touch-action: none;
+            margin: 0; padding: 0; 
+            width: 100vw; height: 100dvh; 
+            overflow: hidden; 
+            background-color: #002244; 
+            font-family: 'VT323', monospace; color: #ffffff;
+            user-select: none; -webkit-user-select: none;
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        .main-layout {
+            display: flex; flex-direction: row; gap: 20px; align-items: stretch; justify-content: center;
+            width: 100%; max-width: 1200px; padding: 10px; box-sizing: border-box;
+        }
+
+        /* NEW UNIFIED WRAPPER: Fixes the indented border glitch entirely */
+        .court-wrapper {
+            display: flex; flex-direction: column;
+            width: 100%; max-width: 850px; flex: 3;
+            border: 8px solid #6c5eb5; 
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+            background-color: #352879; /* Match court color */
+            box-sizing: border-box;
+        }
+
+        .top-bar {
+            width: 100%; background-color: #000; 
+            border: 4px solid #fff; border-bottom: none;
+            display: flex; justify-content: space-between; align-items: center; padding: 5px 15px;
+            box-sizing: border-box; font-size: 1.5rem;
+        }
+
+        .bottom-bar {
+            width: 100%; background-color: #000; 
+            border: 4px solid #fff; border-top: none;
+            display: flex; justify-content: space-between; align-items: center; padding: 5px 15px;
+            box-sizing: border-box; font-size: 1.2rem; color: #00ff00;
+        }
+
+        .canvas-wrapper {
+            position: relative; width: 100%; display: flex; justify-content: center; align-items: center;
+        }
+
+        canvas {
+            background-color: #352879; border-left: 4px solid #fff; border-right: 4px solid #fff;
+            image-rendering: pixelated; 
+            width: 100%; height: auto; aspect-ratio: 2 / 1; 
+            display: block; cursor: ns-resize; touch-action: none; box-sizing: border-box;
+        }
+
+        /* --- LEADERBOARD --- */
+        .leaderboard-panel {
+            background-color: #f8e1f4; 
+            border-radius: 20px; width: 220px; padding: 15px; color: #000;
+            display: flex; flex-direction: column; border: 4px solid #fff;
+            box-shadow: 0 0 15px rgba(0,0,0,0.5); font-size: 1.2rem; flex: 1; max-width: 250px;
+        }
+        .leaderboard-title { text-align: center; text-decoration: underline; margin-bottom: 10px; font-weight: bold;}
+        .lb-entry { margin: 5px 0; display: flex; justify-content: space-between;}
+        .lb-1 { color: #d32f2f; } .lb-2 { color: #fbc02d; } .lb-3 { color: #7b1fa2; }
+
+        /* --- UI ELEMENTS --- */
+        .ad-badge {
+            background-color: #00ff00; color: #000; padding: 2px 8px; border: 2px solid #fff;
+            font-size: 1.5rem; visibility: hidden;
+        }
+
+        .deuce-text {
+            position: absolute; top: 15%; left: 50%; transform: translateX(-50%);
+            font-size: 4rem; color: #ffffff; text-shadow: 4px 4px #000; display: none; z-index: 5;
+        }
+
+        .serve-btn {
+            position: absolute; top: 50%; transform: translate(-50%, -50%);
+            background-color: #00ff00; color: #000; border: 4px solid #ffffff;
+            width: 80px; height: 80px; padding: 0; line-height: 72px; text-align: center; white-space: nowrap;
+            font-family: 'VT323', monospace; font-size: 2rem; cursor: pointer;
+            box-shadow: 4px 4px #000; display: none; z-index: 10;
+        }
+        .serve-btn:active { transform: translate(-50%, -50%) scale(0.95); box-shadow: 0 0 #000; }
+
+        .center-start-btn {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background-color: #00ff00; color: #000; border: 4px solid #fff;
+            padding: 15px 40px; font-family: 'VT323', monospace; font-size: 3rem; cursor: pointer;
+            box-shadow: 6px 6px #000; z-index: 30; display: block;
+        }
+        .center-start-btn:active { transform: translate(-50%, -50%) scale(0.95); box-shadow: 0 0 #000; }
+
+        .btn-green { background-color: #00ff00; color: #fff; border: 3px solid #fff; font-family: 'VT323', monospace; font-size: 1.2rem; cursor: pointer; padding: 5px 15px; }
+        .btn-green:active { transform: scale(0.95); }
+        .btn-purple { background-color: #9966ff; color: #fff; border: 3px solid #fff; font-family: 'VT323', monospace; font-size: 1.2rem; cursor: pointer; padding: 5px 15px; }
+        .btn-purple:active { transform: scale(0.95); }
+        .mute-btn { background: transparent; color: white; border: none; cursor: pointer; padding: 0; display: flex; align-items: center; }
+        
+        .speed-control { display: flex; align-items: center; gap: 8px; justify-content: center; flex: 1; }
+        .speed-btn { 
+            background-color: #333333; color: white; border: none; font-family: 'VT323', monospace; font-size: 1.5rem; 
+            cursor: pointer; width: 24px; height: 24px; border-radius: 50%; 
+            display: flex; align-items: center; justify-content: center; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.5); padding: 0; line-height: 1;
+        }
+        .speed-btn:active { transform: scale(0.9); }
+        input[type=range] { width: 100%; max-width: 150px; cursor: pointer; }
+
+        .overlay-msg {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 3rem; color: #ffff00; text-shadow: 3px 3px #000; background: rgba(0,0,0,0.8);
+            padding: 10px 30px; border-radius: 10px; display: none; z-index: 20; text-align: center;
+        }
+
+        @media (max-width: 950px), (max-height: 500px) {
+            .main-layout { gap: 10px; padding: 5px; }
+            .court-wrapper { border-width: 5px; }
+            .leaderboard-panel { min-width: 140px; padding: 10px; font-size: 0.9rem; justify-content: center; }
+            .bottom-bar, .top-bar { font-size: 1rem; padding: 5px; }
+            .center-start-btn { font-size: 2rem; padding: 10px 25px; }
+            .serve-btn { width: 64px; height: 64px; line-height: 56px; font-size: 1.5rem;} 
+        }
+
+        @media screen and (orientation: portrait) { 
+            .main-layout { display: none !important; } 
+            body::before { content: "PLEASE ROTATE YOUR DEVICE TO LANDSCAPE"; font-size: 2.5rem; text-align: center; color: #ff0; padding: 20px; } 
+        }
+    </style>
+</head>
+<body>
+
+    <audio id="bgMusic" src="gemini_generated_media_5f59bbd0.mp3" preload="auto"></audio>
+
+    <div class="main-layout">
+        
+        <div class="court-wrapper">
+            <div class="top-bar">
+                <div id="adLeft" class="ad-badge">AD</div>
+                <div class="speed-control">
+                    <span>SPEED:</span>
+                    <button id="btnSpeedMinus" class="speed-btn">−</button>
+                    <input type="range" id="speedSlider" min="400" max="1000" step="50" value="1000">
+                    <button id="btnSpeedPlus" class="speed-btn">+</button>
+                    <span id="speedValue" style="min-width: 60px; margin-left: 8px; text-align: left; display: inline-block;">1.0s</span>
+                </div>
+                <div id="adRight" class="ad-badge">AD</div>
+            </div>
+            
+            <div class="canvas-wrapper">
+                <canvas id="gameCanvas" width="800" height="400"></canvas>
+                <div id="deuceText" class="deuce-text">DEUCE!</div>
+                <button id="serveBtn" class="serve-btn">SERVE</button>
+                <button id="playBtn" class="center-start-btn">START</button>
+                <div id="overlayMsg" class="overlay-msg">WAITING...</div>
+            </div>
+
+            <div class="bottom-bar">
+                <span id="myStats">1P: SETS: 0 | GAMES: 0</span>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <button id="modeBtn" class="btn-purple">2P MODE</button>
+                    <button id="btnAudio" class="mute-btn">
+                        <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" stroke-width="2" fill="none">
+                            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                            <line id="audioLine" x1="4" y1="4" x2="20" y2="20" stroke="#ffffff" stroke-width="3" style="display: none;"></line>
+                        </svg>
+                    </button>
+                </div>
+                <span id="oppStats">2P: SETS: 0 | GAMES: 0</span>
+            </div>
+        </div>
+
+        <div class="leaderboard-panel">
+            <div class="leaderboard-title">Global Leader Board</div>
+            <div class="lb-entry lb-1"><span>1.@CJBeez...</span><span>🏆</span></div>
+            <div class="lb-entry lb-2"><span>2.@Guest24.</span><span>🥇</span></div>
+            <div class="lb-entry lb-3"><span>3.@Djokovic.</span><span>🥈</span></div>
+            <div class="lb-entry"><span>4.@JennieT...</span><span>🥉</span></div>
+            <div class="lb-entry"><span>5.@Carrie....</span><span>🏅</span></div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const speedSlider = document.getElementById('speedSlider'), speedValue = document.getElementById('speedValue');
+        const btnSpeedMinus = document.getElementById('btnSpeedMinus'), btnSpeedPlus = document.getElementById('btnSpeedPlus');
+        const myStats = document.getElementById('myStats'), oppStats = document.getElementById('oppStats');
+        const serveBtn = document.getElementById('serveBtn'), playBtn = document.getElementById('playBtn'), modeBtn = document.getElementById('modeBtn');
+        const adLeft = document.getElementById('adLeft'), adRight = document.getElementById('adRight'), deuceText = document.getElementById('deuceText');
+        const overlayMsg = document.getElementById('overlayMsg');
+        
+        // --- 3-STAGE AUDIO LOGIC ---
+        const bgMusic = document.getElementById('bgMusic'), btnAudio = document.getElementById('btnAudio'), audioLine = document.getElementById('audioLine');
+        bgMusic.volume = 0.5; 
+        let audioState = 0; 
+        
+        btnAudio.addEventListener('click', () => {
+            audioState = (audioState + 1) % 3;
+            if (audioState === 0) {
+                audioLine.style.display = 'none';
+                if (gameState === 'PLAYING') bgMusic.play().catch(()=>{});
+            } else if (audioState === 1) {
+                audioLine.style.display = 'block'; audioLine.setAttribute('stroke', '#ffffff');
+                bgMusic.pause();
+            } else if (audioState === 2) {
+                audioLine.style.display = 'block'; audioLine.setAttribute('stroke', '#ff0000');
+                bgMusic.pause();
+            }
+        });
+        bgMusic.addEventListener('ended', function() { if (audioState === 0) { this.currentTime = 4; this.play().catch(e=>{}); } });
+
+        document.addEventListener("visibilitychange", () => {
+            if (document.hidden) { 
+                bgMusic.pause(); 
+            } else if (audioState === 0 && (gameState === 'PLAYING' || gameState === 'GAMEOVER')) { 
+                bgMusic.play().catch(()=>{}); 
+            }
+        });
+
+        const AudioContext = window.AudioContext || window.webkitAudioContext; let audioCtx;
+        function playPip(freq, dur) {
+            if (audioState === 2) return; 
+            if (!audioCtx) audioCtx = new AudioContext();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+            osc.type = 'square'; osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime); 
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(); osc.stop(audioCtx.currentTime + dur);
+        }
+
+        // --- SPEED SLIDER CONTROLS ---
+        function updateSpeed(newSpeed) {
+            currentMs = Math.max(400, Math.min(1000, newSpeed));
+            speedSlider.value = currentMs; 
+            speedValue.innerText = currentMs === 1000 ? "1.0s" : currentMs + "ms";
+            if(playMode === '2P' && socket) socket.emit('speedChangeRequest', currentMs);
+        }
+        speedSlider.addEventListener('input', () => updateSpeed(parseInt(speedSlider.value)));
+        btnSpeedMinus.addEventListener('click', () => updateSpeed(parseInt(speedSlider.value) - 50));
+        btnSpeedPlus.addEventListener('click', () => updateSpeed(parseInt(speedSlider.value) + 50));
+
+        // STATE & PHYSICS
+        let socket = null; let playMode = '1P'; let currentMs = 1000; 
+        const paddleWidth = 10, paddleHeight = 60, ballSize = 10;
+        
+        // THE MAGIC ERGONOMIC GAP (Physics intact)
+        const edgeGap = 60; 
+        const leftX = edgeGap, rightX = canvas.width - edgeGap - paddleWidth; 
+        const crossingDistance = rightX - (leftX + paddleWidth) - ballSize; 
+
+        let playerSide = 'left'; let gameState = 'WAITING'; let lastTime = 0; let rallyCount = 0;
+
+        const scoreValues = [0, 15, 30, 40, 99]; 
+        let myScoreIdx = 0, oppScoreIdx = 0, myGames = 0, oppGames = 0, mySets = 0, oppSets = 0;
+
+        const leftPaddle = { x: leftX, y: 170, flashTime: 0, aiTarget: 170, lastTargetUpdate: 0 }; 
+        const rightPaddle = { x: rightX, y: 170, flashTime: 0, aiTarget: 170, lastTargetUpdate: 0 };
+        const ball = { x: canvas.width/2, y: canvas.height/2, vx: 0, vy: 0 };
+
+        modeBtn.addEventListener('click', () => {
+            if (playMode === '1P') {
+                playMode = '2P'; modeBtn.innerHTML = "2P MODE <span style='color:#00ff00'>ON</span>"; modeBtn.style.borderColor = "#00ff00"; 
+                initSocket();
+            } else {
+                playMode = '1P'; modeBtn.innerHTML = "2P MODE"; modeBtn.style.borderColor = "#fff";
+                if(socket) socket.disconnect(); playerSide = 'left'; gameState = 'WAITING';
+                overlayMsg.style.display = 'none'; playBtn.style.display = 'block'; serveBtn.style.display = 'none';
+                resetGameData();
+            }
+        });
+
+        function initSocket() {
+            overlayMsg.innerText = "CONNECTING..."; overlayMsg.style.display = 'block';
+            playBtn.style.display = 'none'; serveBtn.style.display = 'none';
+            if(!window.io) { let s = document.createElement('script'); s.src = "/socket.io/socket.io.js"; s.onload = connectSocket; document.body.appendChild(s); } else connectSocket();
+        }
+
+        function connectSocket() {
+            socket = io();
+            socket.on('connect', () => { overlayMsg.innerText = "CONNECTING..."; }); 
+            socket.on('setupStart', (data) => {
+                playerSide = data.side; updateSpeed(data.speed);
+                overlayMsg.style.display = 'none'; playBtn.style.display = 'block';
+            });
+            socket.on('speedUpdateBroadcast', (newSpeed) => { currentMs = newSpeed; speedSlider.value = newSpeed; speedValue.innerText = newSpeed === 1000 ? "1.0s" : newSpeed + "ms"; });
+            socket.on('opponentMove', (y) => { if (playerSide === 'left') rightPaddle.y = y; else leftPaddle.y = y; });
+            socket.on('ballHit', (data) => {
+                playPip(600, 0.1);
+                if (data.isServe) { ball.vx = data.vx; ball.vy = data.vy; ball.x = data.x; ball.y = data.y; gameState = 'PLAYING'; rallyCount = 0; lastTime = 0; requestAnimationFrame(gameLoop); return; }
+                ball.vx = data.vx; ball.vy = data.vy; ball.x = data.x; ball.y = data.y; rallyCount++;
+                if(data.isLeft) leftPaddle.flashTime = 150; else rightPaddle.flashTime = 150;
+            });
+        }
+
+        function updateServeBtnPos() {
+            const padY = playerSide === 'left' ? leftPaddle.y : rightPaddle.y;
+            const padX = playerSide === 'left' ? leftPaddle.x + paddleWidth + 20 : rightPaddle.x - 20;
+            
+            serveBtn.style.top = ((padY + paddleHeight/2) / canvas.height * 100) + '%';
+            
+            if (playerSide === 'left') {
+                serveBtn.style.left = ((padX) / canvas.width * 100) + '%';
+                serveBtn.style.transform = 'translate(0%, -50%)'; 
+            } else {
+                serveBtn.style.left = ((padX) / canvas.width * 100) + '%';
+                serveBtn.style.transform = 'translate(-100%, -50%)'; 
+            }
+        }
+
+        // ==========================================
+        // TRUE FLUID MASTER INPUT
+        // ==========================================
+        let dragOffsetY = paddleHeight / 2; 
+        let isMouseDown = false;
+
+        function calculateOffset(clientY) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleY = canvas.height / rect.height;
+            const clickY = (clientY - rect.top) * scaleY;
+            const pPad = playerSide === 'left' ? leftPaddle : rightPaddle;
+            
+            if (clickY >= pPad.y && clickY <= pPad.y + paddleHeight) {
+                dragOffsetY = clickY - pPad.y;
+            } else {
+                dragOffsetY = paddleHeight / 2;
+            }
+        }
+
+        document.addEventListener('touchmove', (e) => { if (e.target === canvas || isMouseDown) e.preventDefault(); }, { passive: false });
+        
+        canvas.addEventListener('mousedown', (e) => { 
+            isMouseDown = true; calculateOffset(e.clientY); handleInput(e.clientY); 
+        });
+        window.addEventListener('mousemove', (e) => { 
+            if (isMouseDown) { 
+                if (e.buttons === 0) { isMouseDown = false; return; }
+                handleInput(e.clientY); 
+            }
+        });
+        window.addEventListener('mouseup', () => { isMouseDown = false; });
+        document.addEventListener('mouseleave', () => { isMouseDown = false; });
+        window.addEventListener('blur', () => { isMouseDown = false; });
+
+        canvas.addEventListener('touchstart', (e) => { 
+            e.preventDefault(); isMouseDown = true; calculateOffset(e.touches[0].clientY); handleInput(e.touches[0].clientY); 
+        }, { passive: false });
+        window.addEventListener('touchmove', (e) => { 
+            if (isMouseDown) { e.preventDefault(); handleInput(e.touches[0].clientY); } 
+        }, { passive: false });
+        window.addEventListener('touchend', () => { isMouseDown = false; });
+        window.addEventListener('touchcancel', () => { isMouseDown = false; });
+
+        function handleInput(clientY) {
+            if (!playerSide || (gameState !== 'PLAYING' && gameState !== 'GAMEOVER')) return;
+            const rect = canvas.getBoundingClientRect();
+            const scaleY = canvas.height / rect.height;
+            
+            let directY = ((clientY - rect.top) * scaleY) - dragOffsetY;
+            directY = Math.max(0, Math.min(canvas.height - paddleHeight, directY));
+            
+            if (playerSide === 'left') leftPaddle.y = directY; 
+            else rightPaddle.y = directY;
+            
+            if (playMode === '2P' && socket) socket.emit('paddleMove', directY);
+            
+            if (gameState === 'GAMEOVER' && serveBtn.style.display === 'block') {
+                updateServeBtnPos();
+            }
+            if (gameState !== 'PLAYING') draw(); 
+        }
+
+        playBtn.addEventListener('click', () => {
+            let el = document.documentElement; 
+            if (!document.fullscreenElement) { if (el.requestFullscreen) el.requestFullscreen().catch(()=>{}); }
+            if (audioState === 0) { bgMusic.play().catch(e=>{}); } if(!audioCtx) audioCtx = new AudioContext();
+            playBtn.style.display = 'none'; resetGameData(); endRound(); 
+        });
+
+        serveBtn.addEventListener('click', (e) => { e.preventDefault(); triggerServe(); });
+
+        function triggerServe() {
+            let el = document.documentElement; if (!document.fullscreenElement) { if (el.requestFullscreen) el.requestFullscreen().catch(()=>{}); }
+            serveBtn.style.display = 'none'; 
+            
+            setTimeout(() => {
+                gameState = 'PLAYING'; rallyCount = 0;
+                let dir = playerSide === 'left' ? 1 : -1; 
+                ball.x = playerSide === 'left' ? leftPaddle.x + paddleWidth : rightPaddle.x - ballSize; 
+                ball.y = playerSide === 'left' ? leftPaddle.y + (paddleHeight/2) : rightPaddle.y + (paddleHeight/2); 
+                
+                const safeMs = Math.max(0.001, currentMs);
+                const pixelsPerMs = crossingDistance / safeMs;
+                ball.vx = dir * pixelsPerMs;
+                ball.vy = 0;
+                
+                playPip(800, 0.1);
+                if(playMode === '2P' && socket) socket.emit('ballHit', { isServe: true, vx: ball.vx, vy: ball.vy, x: ball.x, y: ball.y });
+                lastTime = 0; requestAnimationFrame(gameLoop);
+            }, 300);
+        }
+
+        function scorePoint(isMyPoint) {
+            playPip(300, 0.3);
+            if (isMyPoint) {
+                if (oppScoreIdx === 4) oppScoreIdx = 3; 
+                else if (myScoreIdx === 3 && oppScoreIdx < 3) { winGame(true); return; }
+                else if (myScoreIdx === 3 && oppScoreIdx === 3) myScoreIdx = 4; 
+                else if (myScoreIdx === 4) { winGame(true); return; } else myScoreIdx++;
+            } else {
+                if (myScoreIdx === 4) myScoreIdx = 3; 
+                else if (oppScoreIdx === 3 && myScoreIdx < 3) { winGame(false); return; }
+                else if (oppScoreIdx === 3 && myScoreIdx === 3) oppScoreIdx = 4; 
+                else if (oppScoreIdx === 4) { winGame(false); return; } else oppScoreIdx++;
+            }
+            updateUI(); endRound();
+        }
+
+        function winGame(isMe) {
+            myScoreIdx = 0; oppScoreIdx = 0;
+            if (isMe) { myGames++; if (myGames >= 6 && (myGames - oppGames) >= 2) { winSet(true); return; } } 
+            else { oppGames++; if (oppGames >= 6 && (oppGames - myGames) >= 2) { winSet(false); return; } }
+            if ((myGames + oppGames) % 2 !== 0 && mySets + oppSets === 0) playerSide = playerSide === 'left' ? 'right' : 'left'; 
+            updateUI(); endRound();
+        }
+
+        function winSet(isMe) { if (isMe) mySets++; else oppSets++; myGames = 0; oppGames = 0; updateUI(); endRound(); }
+
+        function updateUI() {
+            myStats.innerText = `1P: SETS: ${mySets} | GAMES: ${myGames}`; oppStats.innerText = `2P: SETS: ${oppSets} | GAMES: ${oppGames}`;
+            
+            if (myScoreIdx === 3 && oppScoreIdx === 3) {
+                deuceText.style.display = 'block';
+                setTimeout(() => { deuceText.style.display = 'none'; }, 500);
+            } else {
+                deuceText.style.display = 'none';
+            }
+
+            adLeft.style.visibility = 'hidden'; adRight.style.visibility = 'hidden';
+            if (myScoreIdx === 4) playerSide === 'left' ? adLeft.style.visibility = 'visible' : adRight.style.visibility = 'visible';
+            if (oppScoreIdx === 4) playerSide === 'left' ? adRight.style.visibility = 'visible' : adLeft.style.visibility = 'visible';
+        }
+
+        function endRound() {
+            gameState = 'GAMEOVER';
+            updateServeBtnPos();
+            serveBtn.style.display = 'block'; leftPaddle.flashTime = 0; rightPaddle.flashTime = 0; draw(); 
+        }
+
+        function resetGameData() { myScoreIdx = 0; oppScoreIdx = 0; myGames = 0; oppGames = 0; mySets = 0; oppSets = 0; updateUI(); }
+
+        function hitBall(isLeft, intersectY) {
+            playPip(600, 0.1); rallyCount++;
+            const safeMs = Math.max(0.001, currentMs);
+            const pixelsPerMs = crossingDistance / safeMs;
+            
+            ball.vx = isLeft ? pixelsPerMs : -pixelsPerMs;
+            let pad = isLeft ? leftPaddle : rightPaddle;
+            
+            ball.vy = (((intersectY + ballSize/2) - (pad.y + paddleHeight/2)) / (paddleHeight/2)) * (pixelsPerMs * 0.6); 
+            
+            if (isLeft) leftPaddle.flashTime = 150; else rightPaddle.flashTime = 150;
+            if(playMode === '2P' && socket) socket.emit('ballHit', { isServe: false, vx: ball.vx, vy: ball.vy, x: ball.x, y: ball.y, isLeft: isLeft });
+        }
+
+        function gameLoop(currTime) {
+            if (gameState !== 'PLAYING') return;
+            if (lastTime === 0) { lastTime = currTime; requestAnimationFrame(gameLoop); return; }
+            let dt = currTime - lastTime; if (dt < 0) dt = 0; if (dt > 50) dt = 16.6; lastTime = currTime;
+
+            if (leftPaddle.flashTime > 0) leftPaddle.flashTime -= dt; if (rightPaddle.flashTime > 0) rightPaddle.flashTime -= dt;
+
+            // FLAWLESS 1P AI MIRROR LOGIC 
+            if (playMode === '1P') {
+                const aiPaddle = playerSide === 'left' ? rightPaddle : leftPaddle;
+                const ballCenter = ball.y + ballSize/2;
+                let predictedY = ballCenter;
+                
+                const ballMovingToAI = playerSide === 'left' ? ball.vx > 0 : ball.vx < 0;
+
+                if (ballMovingToAI && ball.vy !== 0 && ball.vx !== 0) {
+                    const timeToReach = Math.abs((aiPaddle.x - ball.x) / ball.vx);
+                    predictedY = ballCenter + (ball.vy * timeToReach * 0.7);
+                } else if (!ballMovingToAI) {
+                    predictedY = canvas.height/2; 
+                }
+                
+                const skillFactor = rallyCount < 3 ? 0.3 : 0.2;
+                const aiError = (Math.random() - 0.5) * paddleHeight * skillFactor;
+                
+                if (!aiPaddle.lastTargetUpdate || currTime - aiPaddle.lastTargetUpdate > 80) {
+                    aiPaddle.aiTarget = predictedY + aiError - paddleHeight/2; 
+                    aiPaddle.lastTargetUpdate = currTime;
+                }
+                
+                const targetY = Math.max(0, Math.min(canvas.height - paddleHeight, aiPaddle.aiTarget));
+                const distance = Math.abs(targetY - aiPaddle.y);
+                let lerpFactor = distance > 100 ? 0.25 : (distance < 20 ? 0.08 : 0.12);
+                aiPaddle.y += (targetY - aiPaddle.y) * lerpFactor;
+            }
+
+            let nX = ball.x + ball.vx * dt, nY = ball.y + ball.vy * dt;
+            if (nY < 0) { ball.vy = -ball.vy; nY = -nY; playPip(400, 0.05); } 
+            else if (nY > canvas.height - ballSize) { ball.vy = -ball.vy; nY = (canvas.height - ballSize) - (nY - (canvas.height - ballSize)); playPip(400, 0.05); }
+
+            if (ball.vx < 0 && nX <= leftPaddle.x + paddleWidth && ball.x + ballSize >= leftPaddle.x) {
+                if (nX !== ball.x) { 
+                    let intY = ball.y + (nY - ball.y) * ((leftPaddle.x + paddleWidth - ball.x) / (nX - ball.x));
+                    if (intY + ballSize >= leftPaddle.y && intY <= leftPaddle.y + paddleHeight) { hitBall(true, intY); nX = leftPaddle.x + paddleWidth; }
+                }
+            }
+            if (ball.vx > 0 && nX + ballSize >= rightPaddle.x && ball.x <= rightPaddle.x + paddleWidth) {
+                if (nX !== ball.x) {
+                    let intY = ball.y + (nY - ball.y) * ((rightPaddle.x - (ball.x + ballSize)) / (nX - ball.x));
+                    if (intY + ballSize >= rightPaddle.y && intY <= rightPaddle.y + paddleHeight) { hitBall(false, intY); nX = rightPaddle.x - ballSize; }
+                }
+            }
+
+            ball.x = nX; ball.y = nY; draw();
+
+            if (ball.x < -ballSize) { if(playMode === '1P' || playerSide === 'right') scorePoint(playMode === '1P' && playerSide === 'right'); else scorePoint(false); return; }
+            if (ball.x > canvas.width + ballSize) { if(playMode === '1P' || playerSide === 'left') scorePoint(playMode === '1P' && playerSide === 'left'); else scorePoint(false); return; }
+            
+            requestAnimationFrame(gameLoop);
+        }
+
+        const dGrid = [
+            [0,1,1,1,0, 1,0,0,1,1, 1,0,1,0,1, 1,1,0,0,1, 1,0,0,0,1, 1,0,0,0,1, 0,1,1,1,0], [0,0,1,0,0, 0,1,1,0,0, 0,0,1,0,0, 0,0,1,0,0, 0,0,1,0,0, 0,0,1,0,0, 0,1,1,1,0],
+            [0,1,1,1,0, 1,0,0,0,1, 0,0,0,0,1, 0,0,1,1,0, 0,1,0,0,0, 1,0,0,0,0, 1,1,1,1,1], [0,1,1,1,0, 1,0,0,0,1, 0,0,0,0,1, 0,0,1,1,0, 0,0,0,0,1, 1,0,0,0,1, 0,1,1,1,0],
+            [0,0,0,1,0, 0,0,1,1,0, 0,1,0,1,0, 1,0,0,1,0, 1,1,1,1,1, 0,0,0,1,0, 0,0,0,1,0], [1,1,1,1,1, 1,0,0,0,0, 1,1,1,1,0, 0,0,0,0,1, 0,0,0,0,1, 1,0,0,0,1, 0,1,1,1,0],
+            [0,1,1,1,0, 1,0,0,0,0, 1,0,0,0,0, 1,1,1,1,0, 1,0,0,0,1, 1,0,0,0,1, 0,1,1,1,0], [1,1,1,1,1, 0,0,0,0,1, 0,0,0,1,0, 0,0,1,0,0, 0,1,0,0,0, 0,1,0,0,0, 0,1,0,0,0],
+            [0,1,1,1,0, 1,0,0,0,1, 1,0,0,0,1, 0,1,1,1,0, 1,0,0,0,1, 1,0,0,0,1, 0,1,1,1,0], [0,1,1,1,0, 1,0,0,0,1, 1,0,0,0,1, 0,1,1,1,1, 0,0,0,0,1, 0,0,0,0,1, 0,1,1,1,0]
+        ];
+        function drawPxNum(num, sX, sY, pS) {
+            ctx.fillStyle = '#fff'; let s = num.toString(); if (num < 10) s = "0" + s; 
+            for (let d=0; d<s.length; d++) { let g = dGrid[parseInt(s[d])], oX = sX + (d * 7 * pS); 
+                for (let i=0; i<35; i++) { if (g[i]===1) ctx.fillRect(oX + (i%5)*pS, sY + Math.floor(i/5)*pS, pS, pS); }
+            }
+        }
+
+        // --- NEW HALF-OVAL DRAWING HELPER ---
+        function drawHalfOval(x, y, w, h, isLeft) {
+            ctx.beginPath();
+            if (isLeft) {
+                // Flat side on the left, curve on the right
+                ctx.ellipse(x, y + h/2, w, h/2, 0, -Math.PI/2, Math.PI/2);
+            } else {
+                // Flat side on the right, curve on the left
+                ctx.ellipse(x + w, y + h/2, w, h/2, 0, Math.PI/2, 3*Math.PI/2);
+            }
+            ctx.fill();
+        }
+
+        function draw() {
+            ctx.fillStyle = '#352879'; ctx.fillRect(0, 0, canvas.width, canvas.height); 
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 4; ctx.setLineDash([15, 15]);
+            ctx.beginPath(); ctx.moveTo(canvas.width/2, 0); ctx.lineTo(canvas.width/2, canvas.height); ctx.stroke(); ctx.setLineDash([]);
+            
+            let lVal = playerSide === 'left' ? scoreValues[myScoreIdx] : scoreValues[oppScoreIdx];
+            let rVal = playerSide === 'right' ? scoreValues[myScoreIdx] : scoreValues[oppScoreIdx];
+            if (lVal !== 99 && rVal !== 99) { drawPxNum(lVal, canvas.width/4 - 40, 20, 7); drawPxNum(rVal, (canvas.width/4)*3 - 40, 20, 7); }
+
+            // --- REPLACED RECTANGLES WITH OVALS ---
+            ctx.fillStyle = leftPaddle.flashTime > 0 ? '#00ff00' : '#00aa00'; 
+            if (playerSide === 'left') { 
+                drawHalfOval(leftPaddle.x, leftPaddle.y, paddleWidth, paddleHeight, true); 
+                ctx.fillStyle = rightPaddle.flashTime > 0 ? '#ff0000' : '#fff'; 
+                drawHalfOval(rightPaddle.x, rightPaddle.y, paddleWidth, paddleHeight, false); 
+            } 
+            else { 
+                drawHalfOval(rightPaddle.x, rightPaddle.y, paddleWidth, paddleHeight, false); 
+                ctx.fillStyle = leftPaddle.flashTime > 0 ? '#ff0000' : '#fff'; 
+                drawHalfOval(leftPaddle.x, leftPaddle.y, paddleWidth, paddleHeight, true); 
+            }
+            
+            if (gameState === 'PLAYING') { ctx.fillStyle = '#fff'; ctx.fillRect(ball.x, ball.y, ballSize, ballSize); }
+        }
+
+        updateUI(); draw();
+
+        if ('serviceWorker' in navigator) { window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(()=>{}); }); }
+    </script>
+</body>
+</html>
